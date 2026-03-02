@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Tách nền chuyên nghiệp</title>
+
+<style>
+*{box-sizing:border-box}
+
+body{
+    margin:0;
+    font-family:Segoe UI, Arial;
+    background:linear-gradient(135deg,#e3f2fd,#f8bbd0);
+    min-height:100vh;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+}
+
+.main-title{
+    margin:20px 0 10px 0;
+    text-align:center;
+    font-size:clamp(18px,3vw,28px);
+    font-weight:700;
+    color:#0d47a1;
+}
+
+.container{
+    width:95vw;
+    height:85vh;
+    max-width:1600px;
+    background:white;
+    border-radius:18px;
+    box-shadow:0 20px 50px rgba(0,0,0,0.15);
+    display:flex;
+    overflow:hidden;
+}
+
+.preview{
+    flex:2;
+    background:#f5f5f5;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    padding:15px;
+    position:relative;
+}
+
+canvas{
+    max-width:100%;
+    max-height:100%;
+    border-radius:10px;
+    border:1px solid #ddd;
+    background:transparent;
+}
+
+/* TEXT HƯỚNG DẪN */
+.placeholder{
+    position:absolute;
+    color:#888;
+    font-size:18px;
+    font-weight:500;
+    pointer-events:none;
+}
+
+.panel{
+    flex:1;
+    padding:25px;
+    border-left:1px solid #eee;
+    display:flex;
+    flex-direction:column;
+}
+
+.control-group{ margin-bottom:18px; }
+
+.value{
+    float:right;
+    font-weight:600;
+    color:#1976d2;
+}
+
+input[type=range]{
+    width:100%;
+    margin-top:6px;
+    cursor:pointer;
+}
+
+button{
+    margin-top:auto;
+    padding:14px;
+    border:none;
+    border-radius:12px;
+    background:#1976d2;
+    color:white;
+    font-weight:600;
+    font-size:15px;
+    cursor:pointer;
+    transition:0.3s;
+}
+
+button.success{
+    background:#43a047 !important;
+}
+
+.switch{
+  position:relative;
+  display:inline-block;
+  width:52px;
+  height:26px;
+}
+.switch input{display:none;}
+.sliderToggle{
+  position:absolute;
+  cursor:pointer;
+  top:0;left:0;right:0;bottom:0;
+  background:#ccc;
+  border-radius:26px;
+  transition:0.3s;
+}
+.sliderToggle:before{
+  position:absolute;
+  content:"";
+  height:20px;width:20px;
+  left:3px;bottom:3px;
+  background:white;
+  border-radius:50%;
+  transition:0.3s;
+}
+input:checked + .sliderToggle{
+  background:#43a047;
+}
+input:checked + .sliderToggle:before{
+  transform:translateX(26px);
+}
+.toggle-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+}
+
+@media(max-width:900px){
+    .container{ flex-direction:column; height:90vh; }
+    .panel{ border-left:none; border-top:1px solid #eee; }
+}
+</style>
+</head>
+<body>
+
+<h1 class="main-title">Phần mềm tách nền của Khầy Chu</h1>
+
+<div class="container">
+
+<div class="preview">
+    <canvas id="canvas"></canvas>
+    <div class="placeholder" id="placeholderText">
+        Bấm Ctrl+V để dán ảnh
+    </div>
+</div>
+
+<div class="panel">
+
+<h2>Điều chỉnh</h2>
+
+<div class="control-group">
+<label>Độ nhạy nền <span class="value" id="thresholdVal">60</span></label>
+<input type="range" id="threshold" min="0" max="200" value="60">
+</div>
+
+<div class="control-group">
+<label>Tương phản đen trắng <span class="value" id="bwVal">0</span></label>
+<input type="range" id="bwContrast" min="-100" max="100" value="0">
+</div>
+
+<div class="control-group toggle-row">
+<span>Chế độ đen trắng</span>
+<label class="switch">
+<input type="checkbox" id="bwToggle">
+<span class="sliderToggle"></span>
+</label>
+</div>
+
+<div class="control-group toggle-row">
+<span>Trắng thành trong suốt</span>
+<label class="switch">
+<input type="checkbox" id="whiteToTransparent">
+<span class="sliderToggle"></span>
+</label>
+</div>
+
+<button id="copyBtn" onclick="copyImage()">Copy ảnh</button>
+
+</div>
+</div>
+
+<script>
+
+let originalImage=null;
+
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+const placeholder=document.getElementById("placeholderText");
+
+const threshold=document.getElementById("threshold");
+const bwContrast=document.getElementById("bwContrast");
+const bwToggle=document.getElementById("bwToggle");
+const whiteToTransparent=document.getElementById("whiteToTransparent");
+const copyBtn=document.getElementById("copyBtn");
+
+const thresholdVal=document.getElementById("thresholdVal");
+const bwVal=document.getElementById("bwVal");
+
+const sliders=[threshold,bwContrast];
+
+/* LOAD */
+function loadSettings(){
+    const saved=JSON.parse(localStorage.getItem("imageToolSettings"));
+    if(!saved) return;
+
+    threshold.value=saved.threshold ?? 60;
+    bwContrast.value=saved.bwContrast ?? 0;
+    bwToggle.checked=saved.bwToggle ?? false;
+    whiteToTransparent.checked=saved.whiteToTransparent ?? false;
+}
+
+/* SAVE */
+function saveSettings(){
+    const settings={
+        threshold:threshold.value,
+        bwContrast:bwContrast.value,
+        bwToggle:bwToggle.checked,
+        whiteToTransparent:whiteToTransparent.checked
+    };
+    localStorage.setItem("imageToolSettings",JSON.stringify(settings));
+}
+
+/* SLIDER + WHEEL */
+sliders.forEach(slider=>{
+
+    slider.addEventListener("input",()=>{
+        updateValues();
+        saveSettings();
+        renderImage();
+    });
+
+    slider.addEventListener("wheel",e=>{
+        e.preventDefault();
+        let step=2;
+        let newValue=parseInt(slider.value)+(e.deltaY<0?step:-step);
+        newValue=Math.max(slider.min,Math.min(slider.max,newValue));
+        slider.value=newValue;
+        updateValues();
+        saveSettings();
+        renderImage();
+    });
+});
+
+bwToggle.addEventListener("change",()=>{ saveSettings(); renderImage(); });
+whiteToTransparent.addEventListener("change",()=>{ saveSettings(); renderImage(); });
+
+function updateValues(){
+    thresholdVal.textContent=threshold.value;
+    bwVal.textContent=bwContrast.value;
+}
+
+/* PASTE IMAGE */
+document.addEventListener("paste",function(event){
+
+    const items=event.clipboardData.items;
+
+    for(let i=0;i<items.length;i++){
+
+        if(items[i].type.indexOf("image")!==-1){
+
+            const blob=items[i].getAsFile();
+            const reader=new FileReader();
+
+            reader.onload=function(e){
+                const img=new Image();
+                img.onload=function(){
+                    originalImage=img;
+                    canvas.width=img.width;
+                    canvas.height=img.height;
+
+                    placeholder.style.display="none";
+
+                    renderImage();
+                };
+                img.src=e.target.result;
+            };
+
+            reader.readAsDataURL(blob);
+        }
+    }
+});
+
+function renderImage(){
+    if(!originalImage) return;
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(originalImage,0,0);
+
+    let imageData=ctx.getImageData(0,0,canvas.width,canvas.height);
+    let data=imageData.data;
+
+    let thresholdNum=parseInt(threshold.value);
+    let contrast=parseInt(bwContrast.value)*2.55;
+    let factor=(259*(contrast+255))/(255*(259-contrast));
+
+    let r0=data[0], g0=data[1], b0=data[2];
+
+    for(let i=0;i<data.length;i+=4){
+
+        let r=data[i], g=data[i+1], b=data[i+2];
+
+        let diff=Math.sqrt(
+            (r-r0)*(r-r0)+
+            (g-g0)*(g-g0)+
+            (b-b0)*(b-b0)
+        );
+
+        let isBackground=false;
+
+        if(diff<thresholdNum){
+            data[i]=255;
+            data[i+1]=255;
+            data[i+2]=255;
+            isBackground=true;
+        }
+
+        if(whiteToTransparent.checked && isBackground){
+            data[i+3]=0;
+        }
+
+        if(bwToggle.checked && !isBackground){
+            let gray=0.299*r+0.587*g+0.114*b;
+            let newGray=factor*(gray-128)+128;
+            newGray=Math.max(0,Math.min(255,newGray));
+            data[i]=newGray;
+            data[i+1]=newGray;
+            data[i+2]=newGray;
+        }
+    }
+
+    ctx.putImageData(imageData,0,0);
+}
+
+/* COPY */
+async function copyImage(){
+
+    if(!originalImage) return;
+
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve));
+    await navigator.clipboard.write([
+        new ClipboardItem({"image/png":blob})
+    ]);
+
+    copyBtn.classList.add("success");
+    copyBtn.textContent="✓ Đã copy thành công";
+
+    setTimeout(()=>{
+        copyBtn.classList.remove("success");
+        copyBtn.textContent="Copy ảnh";
+    },2000);
+}
+
+loadSettings();
+updateValues();
+
+</script>
+
+</body>
+</html>
