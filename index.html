@@ -54,7 +54,6 @@ canvas{
     background:transparent;
 }
 
-/* TEXT HƯỚNG DẪN */
 .placeholder{
     position:absolute;
     color:#888;
@@ -153,7 +152,7 @@ input:checked + .sliderToggle:before{
 <div class="preview">
     <canvas id="canvas"></canvas>
     <div class="placeholder" id="placeholderText">
-        Bấm Ctrl+V để dán ảnh
+        Bấm Ctrl+V để dán ảnh hoặc chọn ảnh từ máy
     </div>
 </div>
 
@@ -187,6 +186,10 @@ input:checked + .sliderToggle:before{
 </label>
 </div>
 
+<button onclick="document.getElementById('fileInput').click()">Chọn ảnh từ máy</button>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+
 <button id="copyBtn" onclick="copyImage()">Copy ảnh</button>
 
 </div>
@@ -212,7 +215,39 @@ const bwVal=document.getElementById("bwVal");
 
 const sliders=[threshold,bwContrast];
 
-/* LOAD */
+/* FILE INPUT */
+const fileInput=document.getElementById("fileInput");
+
+fileInput.addEventListener("change",function(){
+
+    const file=this.files[0];
+    if(!file) return;
+
+    const reader=new FileReader();
+
+    reader.onload=function(e){
+
+        const img=new Image();
+
+        img.onload=function(){
+
+            originalImage=img;
+
+            canvas.width=img.width;
+            canvas.height=img.height;
+
+            placeholder.style.display="none";
+
+            renderImage();
+        };
+
+        img.src=e.target.result;
+    };
+
+    reader.readAsDataURL(file);
+});
+
+
 function loadSettings(){
     const saved=JSON.parse(localStorage.getItem("imageToolSettings"));
     if(!saved) return;
@@ -223,7 +258,6 @@ function loadSettings(){
     whiteToTransparent.checked=saved.whiteToTransparent ?? false;
 }
 
-/* SAVE */
 function saveSettings(){
     const settings={
         threshold:threshold.value,
@@ -234,7 +268,6 @@ function saveSettings(){
     localStorage.setItem("imageToolSettings",JSON.stringify(settings));
 }
 
-/* SLIDER + WHEEL */
 sliders.forEach(slider=>{
 
     slider.addEventListener("input",()=>{
@@ -263,7 +296,6 @@ function updateValues(){
     bwVal.textContent=bwContrast.value;
 }
 
-/* PASTE IMAGE */
 document.addEventListener("paste",function(event){
 
     const items=event.clipboardData.items;
@@ -345,7 +377,6 @@ function renderImage(){
     ctx.putImageData(imageData,0,0);
 }
 
-/* COPY */
 async function copyImage(){
 
     if(!originalImage) return;
